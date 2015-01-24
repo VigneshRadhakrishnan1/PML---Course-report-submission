@@ -207,12 +207,12 @@ hr {
 
 <p>Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).Read more: <a href="http://groupware.les.inf.puc-rio.br/har#ixzz3PeJdnp9u">http://groupware.les.inf.puc-rio.br/har#ixzz3PeJdnp9u</a></p>
 
-<p>The training data for this project is available here:<a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv</a>
+<p>The purpose of this exercise is to develop a model which on the basis of the measured parameters would be able to predict the activity a person is involved in. The training data for this project is available here:<a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv</a>
 The test data is available here:<a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv</a></p>
 
 <h2>Data loading and cleaning</h2>
 
-<p>Data is read directly from the url and stored locally on R. This step can be avoided if you have the data saved locally.</p>
+<p>Data is read directly from the url and stored locally on R. The following steps can be avoided if you have the data saved locally.</p>
 
 <pre><code class="r">setwd(&quot;D:/Coursera/Practical Machine Learning&quot;)
 if (!file.exists(&quot;./training.csv&quot;)) {
@@ -223,16 +223,9 @@ testing  &lt;- read.csv(&quot;./test.csv&quot;, header=TRUE, na.strings=c(&quot;
 #summary(training)
 </code></pre>
 
-<p>It was observed that there were multiple NAs in a lot of the variables. We will be removing those variables from our data set and create a usable tidy dataset</p>
+<p>It was observed that there were multiple NAs in most of the variables. We will be removing those variables from our data set and create a usable tidy dataset for our modeling purpose. We are left with 60 variables after the cleanup. Further variables that cannot be used in modeling - userid, time etc.- are removed leaving us with 53 variables - including &#39;classe&#39;</p>
 
 <pre><code class="r">train_nar &lt;- training[, apply(training, 2, function(x) !any(is.na(x)))] 
-dim(train_nar)
-</code></pre>
-
-<pre><code>## [1] 19622    60
-</code></pre>
-
-<pre><code class="r">#removing variables not to be used in modeling - time, userid etc
 trainData &lt;- train_nar[, -c(1:7)]
 dim(trainData)
 </code></pre>
@@ -243,43 +236,125 @@ dim(trainData)
 <p>Cleaning test dataset to remove variables excluded in training. Also we need to remove the &#39;classe&#39; variable which has to be predicted.</p>
 
 <pre><code class="r">testData &lt;- testing[, names(trainData[,-53])]
-dim(testData)
-</code></pre>
-
-<pre><code>## [1] 20 52
+#dim(testData)
 </code></pre>
 
 <h2>Predictive model development methodology</h2>
 
-<p>We will be splitting the training datset 70-30 using caret, to be used in classification algorithms that will be used here - randomForest, c&amp;rt, c5.0. Please make sure that the packages are installed already in your system else the models won&#39;t work.</p>
+<p>We will be splitting the training datset 70-30 using caret. The intent is to try multiple classification model and compare for best fit. We will be using randomForest, knn &amp; ANN. Please make sure that the following packages are installed already in your system else the models won&#39;t work.</p>
 
 <pre><code class="r">#Loading packages
 library(caret)
 library(rpart)
 library(randomForest)
-library(C50)
+library(MASS)
 library(e1071)
-</code></pre>
-
-<pre><code>## Error in library(e1071): there is no package called &#39;e1071&#39;
-</code></pre>
-
-<pre><code class="r">library(plyr)
+library(nnet)
 split&lt;-createDataPartition(y=trainData$classe, p=0.7,list=F)
 train1&lt;- trainData[split,] 
 test1&lt;- trainData[-split,] 
-dim(train1)
 </code></pre>
 
-<pre><code>## [1] 13737    53
+<h3>Random Forest model</h3>
+
+<p>The first model was developed for a Random Forest algorithm using randomForest package. The model has an accuracy of 99.38%</p>
+
+<pre><code class="r">#tried didn&#39;t work due to memory constraints.
+#fit1 &lt;- randomForest(train1[,1:52], train1$classe, mtry= 20, importance=TRUE, proximity = TRUE, keep.forest=TRUE)
+#
+val&lt;-trainControl(method=&quot;cv&quot;, number=10)
+fit1 &lt;- train(classe ~ ., data=train1, method=&quot;rf&quot;, trControl=val)
+pred1&lt;-predict(fit1, newdata=test1) # for test data set
+confusionMatrix(pred1, test1$classe)$table
 </code></pre>
 
-<p>The first model was developed for a C&amp;RT algorithm using rpart</p>
-
-<pre><code class="r">fit1 &lt;- randomForest(train1[,1:52], train1$classe, mtry= 20, importance=TRUE, proximity = TRUE, keep.forest=TRUE)
+<pre><code>##           Reference
+## Prediction    A    B    C    D    E
+##          A 1674    3    0    0    0
+##          B    0 1132    9    0    0
+##          C    0    4 1014   17    0
+##          D    0    0    3  946    2
+##          E    0    0    0    1 1080
 </code></pre>
 
-<pre><code>## Error: cannot allocate vector of size 1.4 Gb
+<pre><code class="r">confusionMatrix(pred1, test1$classe)$overall
+</code></pre>
+
+<pre><code>##       Accuracy          Kappa  AccuracyLower  AccuracyUpper   AccuracyNull 
+##      0.9933730      0.9916168      0.9909517      0.9952834      0.2844520 
+## AccuracyPValue  McnemarPValue 
+##      0.0000000            NaN
+</code></pre>
+
+<pre><code class="r">predFin&lt;-predict(fit1, newdata=testData) # to predict the 20 cases in test dataset
+predFin
+</code></pre>
+
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E
+</code></pre>
+
+<h3>KNN model</h3>
+
+<p>Other models were also attempted using the caret package. The knn model had a much lower accuracy at 90.62%. The prediction on the prediction data set for the 20 cases though were accurate. The model though took a fair amount of time to execute</p>
+
+<pre><code class="r">#fit2 &lt;- train(classe ~ ., data=train1, method=&quot;knn&quot;, trControl=Control2, tuneLength=10)
+#pred2&lt;-predict(fit2, newdata=test1) # for test data set
+#confusionMatrix(pred2, test1$classe)$table
+confusionMatrix(pred2, test1$classe)$overall
+</code></pre>
+
+<pre><code>##       Accuracy          Kappa  AccuracyLower  AccuracyUpper   AccuracyNull 
+##   9.062022e-01   8.813596e-01   8.984657e-01   9.135332e-01   2.844520e-01 
+## AccuracyPValue  McnemarPValue 
+##   0.000000e+00   1.239216e-16
+</code></pre>
+
+<pre><code class="r">#predFin2&lt;-predict(fit2, newdata=testData) # to predict the 20 cases in test dataset
+</code></pre>
+
+<h3>ANN model</h3>
+
+<p>A Neural network model was also tried which had an overall accuracy of 82.8% and took close to 2 hours to execute. Further iterations might improve the accuracy further, not explored in iterest of time. </p>
+
+<pre><code class="r">#fit3 &lt;- train(classe ~ ., data=train1, method=&quot;nnet&quot;, preProcess=&quot;range&quot;, tuneLength=5, trace=FALSE, maxit=100)
+#pred3&lt;-predict(fit3, newdata=test1) # for test data set
+#confusionMatrix(pred3, test1$classe)$table
+confusionMatrix(pred3, test1$classe)$overall
+</code></pre>
+
+<pre><code>##       Accuracy          Kappa  AccuracyLower  AccuracyUpper   AccuracyNull 
+##   8.280374e-01   7.830343e-01   8.181496e-01   8.375988e-01   2.844520e-01 
+## AccuracyPValue  McnemarPValue 
+##   0.000000e+00   6.630894e-11
+</code></pre>
+
+<pre><code class="r">#predFin3&lt;-predict(fit3, newdata=testData) # to predict the 20 cases in test dataset
+</code></pre>
+
+<p>Variable importance for the model was looked to relative importance of the factors in the model.We can also look at using a smaller number of variables in our model by eliminating some of the factors here to look how the results vary. A better understanding of individual variables will help us in eliminating variables that might not be very relevant in measuring activity.</p>
+
+<pre><code class="r">plot(varImp(fit1))
+</code></pre>
+
+<p><img src="data:image/png;base64,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" alt="plot of chunk unnamed-chunk-8"/> </p>
+
+<p>As suggested , below code was used to create individual text files for each predicted case, commented out here. The files will get created in the working directory. The results were tested on the submission page and had 100% accuracy.</p>
+
+<pre><code class="r">getwd()
+</code></pre>
+
+<pre><code>## [1] &quot;D:/Coursera/Practical Machine Learning&quot;
+</code></pre>
+
+<pre><code class="r">pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0(&quot;problem_id_&quot;,i,&quot;.txt&quot;)
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(predFin)
 </code></pre>
 
 </body>

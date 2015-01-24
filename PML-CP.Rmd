@@ -1,13 +1,16 @@
+---
+output: word_document
+---
 "Practical Machine Learning - Course Project writeup"
 -----------------------------------------------------------------
 ## Assignment background
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3PeJdnp9u
 
-The training data for this project is available here:https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The purpose of this exercise is to develop a model which on the basis of the measured parameters would be able to predict the activity a person is involved in. The training data for this project is available here:https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
 The test data is available here:https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
 
 ## Data loading and cleaning
-Data is read directly from the url and stored locally on R. This step can be avoided if you have the data saved locally.
+Data is read directly from the url and stored locally on R. The following steps can be avoided if you have the data saved locally.
 ```{r}
 setwd("D:/Coursera/Practical Machine Learning")
 if (!file.exists("./training.csv")) {
@@ -17,7 +20,7 @@ training <- read.csv("./training.csv", header=TRUE, na.strings=c("NA", "#DIV/0!"
 testing  <- read.csv("./test.csv", header=TRUE, na.strings=c("NA", "#DIV/0!"))
 #summary(training)
 ```
-It was observed that there were multiple NAs in a lot of the variables. We will be removing those variables from our data set and create a usable tidy dataset. We are left with 60 variables after the cleanu. Further variables that cannot be used in modeling - userid, time etc.- are removed.
+It was observed that there were multiple NAs in most of the variables. We will be removing those variables from our data set and create a usable tidy dataset for our modeling purpose. We are left with 60 variables after the cleanup. Further variables that cannot be used in modeling - userid, time etc.- are removed leaving us with 53 variables - including 'classe'
 ```{r}
 train_nar <- training[, apply(training, 2, function(x) !any(is.na(x)))] 
 trainData <- train_nar[, -c(1:7)]
@@ -26,10 +29,10 @@ dim(trainData)
 Cleaning test dataset to remove variables excluded in training. Also we need to remove the 'classe' variable which has to be predicted.
 ```{r}
 testData <- testing[, names(trainData[,-53])]
-dim(testData)
+#dim(testData)
 ```
 ## Predictive model development methodology
-We will be splitting the training datset 70-30 using caret. The intent is to try multiple classification model and compare for best fit. We will be using - randomForest, c&rt, c5.0. Please make sure that the following packages are installed already in your system else the models won't work.
+We will be splitting the training datset 70-30 using caret. The intent is to try multiple classification model and compare for best fit. We will be using randomForest, knn & ANN. Please make sure that the following packages are installed already in your system else the models won't work.
 ```{r}
 #Loading packages
 library(caret)
@@ -37,45 +40,49 @@ library(rpart)
 library(randomForest)
 library(MASS)
 library(e1071)
-library(plyr)
+library(nnet)
 split<-createDataPartition(y=trainData$classe, p=0.7,list=F)
 train1<- trainData[split,] 
 test1<- trainData[-split,] 
 ```
-The first model was developed for a Random Forest algorithm using randomForest package. The model has an accuracy of 99.26%
+### Random Forest model
+The first model was developed for a Random Forest algorithm using randomForest package. The model has an accuracy of 99.38%
 ```{r}
-#tried didn't work due to memory constraints
+#tried didn't work due to memory constraints.
 #fit1 <- randomForest(train1[,1:52], train1$classe, mtry= 20, importance=TRUE, proximity = TRUE, keep.forest=TRUE)
-Control2<-trainControl(method="cv", number=6, allowParallel=T, verbose=T)
-fit1 <- train(classe ~ ., data=train1, method="rf", trControl=Control2, verbose=F)
+#
+val<-trainControl(method="cv", number=10)
+fit1 <- train(classe ~ ., data=train1, method="rf", trControl=val)
 pred1<-predict(fit1, newdata=test1) # for test data set
 confusionMatrix(pred1, test1$classe)$table
 confusionMatrix(pred1, test1$classe)$overall
-predFin<-predict(fit1, newdata=testData) # for prediction dataset
+predFin<-predict(fit1, newdata=testData) # to predict the 20 cases in test dataset
+predFin
 ```
-
-Other models were also attempted using the caret package. The knn model had a much lower accuracy at 90.62%. The prediction on the prediction data set for the 20 cases though were accurate 
+### KNN model
+Other models were also attempted using the caret package. The knn model had a much lower accuracy at 90.62%. The prediction on the prediction data set for the 20 cases though were accurate. The model though took a fair amount of time to execute
 ```{r}
-fit2 <- train(classe ~ ., data=train1, method="knn", trControl=Control2, tuneLength=10)
-pred2<-predict(fit2, newdata=test1) # for test data set
-confusionMatrix(pred2, test1$classe)$table
+#fit2 <- train(classe ~ ., data=train1, method="knn", trControl=Control2, tuneLength=10)
+#pred2<-predict(fit2, newdata=test1) # for test data set
+#confusionMatrix(pred2, test1$classe)$table
 confusionMatrix(pred2, test1$classe)$overall
-predFin2<-predict(fit2, newdata=testData) # for prediction dataset
+#predFin2<-predict(fit2, newdata=testData) # to predict the 20 cases in test dataset
+```
+### ANN model
+A Neural network model was also tried which had an overall accuracy of 82.8% and took close to 2 hours to execute. Further iterations might improve the accuracy further, not explored in iterest of time. 
+```{r}
+#fit3 <- train(classe ~ ., data=train1, method="nnet", preProcess="range", tuneLength=5, trace=FALSE, maxit=100)
+#pred3<-predict(fit3, newdata=test1) # for test data set
+#confusionMatrix(pred3, test1$classe)$table
+confusionMatrix(pred3, test1$classe)$overall
+#predFin3<-predict(fit3, newdata=testData) # to predict the 20 cases in test dataset
+```
+Variable importance for the model was looked to relative importance of the factors in the model.We can also look at using a smaller number of variables in our model by eliminating some of the factors here to look how the results vary. A better understanding of individual variables will help us in eliminating variables that might not be very relevant in measuring activity.
+```{r}
+plot(varImp(fit1))
 ```
 
-A Neural network model was also tried. 
-```{r}
-fit3 <- train(classe ~ ., data=train1, method="nnet", preProcess="range", tuneLength=2, trace=FALSE, maxit=100)
-pred3<-predict(fit3, newdata=test1) # for test data set
-confusionMatrix(pred3, test1$classe)$table
-confusionMatrix(pred3, test1$classe)$overall
-predFin2<-predict(fit3, newdata=testData) # for prediction dataset
-```
-Variable importance for the model was looked to relative importance of the factors in the model
-```{r}
-varImp(fit1)
-```
-As suggested in the course the below code was used to create individual text files for each predicted case, commented out here. The files will get created in the working directory. The results were tested on the submission page and had 100% accuracy.
+As suggested , below code was used to create individual text files for each predicted case, commented out here. The files will get created in the working directory. The results were tested on the submission page and had 100% accuracy.
 ```{r}
 getwd()
 pml_write_files = function(x){
